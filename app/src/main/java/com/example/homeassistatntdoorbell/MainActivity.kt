@@ -310,5 +310,10 @@ class MainActivity : AppCompatActivity() {
         if (isRunning != prefsManager.serviceEnabled) {
             prefsManager.serviceEnabled = isRunning
         }
+
+        // Auto-start service if configured but not running
+        if (!isRunning && prefsManager.serviceEnabled && prefsManager.isConfigured() && hasRequiredPermissions()) {
+            startMonitoringService()
+        }
     }
 }
