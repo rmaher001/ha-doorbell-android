@@ -1,6 +1,8 @@
 package com.example.homeassistatntdoorbell
 
 import android.Manifest
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -173,6 +175,17 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Monitoring service stopped", Toast.LENGTH_SHORT).show()
     }
 
+    private fun isServiceRunning(): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        @Suppress("DEPRECATION")
+        for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+            if (DoorbellMonitorService::class.java.name == service.service.className) {
+                return true
+            }
+        }
+        return false
+    }
+
     private fun updateServiceStatus(running: Boolean) {
         if (running) {
             txtServiceStatus.text = "Service: Running"
@@ -288,6 +301,14 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updatePermissionStatus()
-        updateServiceStatus(prefsManager.serviceEnabled)
+
+        // Check actual service status, not just saved preference
+        val isRunning = isServiceRunning()
+        updateServiceStatus(isRunning)
+
+        // Sync preference with actual state
+        if (isRunning != prefsManager.serviceEnabled) {
+            prefsManager.serviceEnabled = isRunning
+        }
     }
 }
