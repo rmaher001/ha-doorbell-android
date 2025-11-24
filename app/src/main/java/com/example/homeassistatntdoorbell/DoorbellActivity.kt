@@ -17,7 +17,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.card.MaterialCardView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Full-screen activity that appears when doorbell is triggered
@@ -136,16 +138,18 @@ class DoorbellActivity : AppCompatActivity() {
             onConnectionStateChange = {}
         )
 
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             val result = haClient.getAIAnalysis()
 
-            result.onSuccess { aiResponse ->
-                txtTitle.text = aiResponse.title
-                txtDescription.text = aiResponse.description
-                cardAIInfo.visibility = View.VISIBLE
-            }.onFailure { error ->
-                Log.e(TAG, "Failed to get AI analysis: ${error.message}")
-                // Keep card hidden if AI analysis fails
+            withContext(Dispatchers.Main) {
+                result.onSuccess { aiResponse ->
+                    txtTitle.text = aiResponse.title
+                    txtDescription.text = aiResponse.description
+                    cardAIInfo.visibility = View.VISIBLE
+                }.onFailure { error ->
+                    Log.e(TAG, "Failed to get AI analysis: ${error.message}")
+                    // Keep card hidden if AI analysis fails
+                }
             }
         }
     }
@@ -157,26 +161,28 @@ class DoorbellActivity : AppCompatActivity() {
         btnUnlock.isEnabled = false
         btnUnlock.text = "Unlocking..."
 
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             val result = haClient.unlockDoor(prefsManager.lockEntity)
 
-            result.onSuccess {
-                Toast.makeText(this@DoorbellActivity, "Door unlocked", Toast.LENGTH_SHORT).show()
-                btnUnlock.text = "Unlocked ✓"
+            withContext(Dispatchers.Main) {
+                result.onSuccess {
+                    Toast.makeText(this@DoorbellActivity, "Door unlocked", Toast.LENGTH_SHORT).show()
+                    btnUnlock.text = "Unlocked ✓"
 
-                // Auto-dismiss after unlock
-                Handler(Looper.getMainLooper()).postDelayed({
-                    finish()
-                }, 2000)
+                    // Auto-dismiss after unlock
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        finish()
+                    }, 2000)
 
-            }.onFailure { error ->
-                Toast.makeText(
-                    this@DoorbellActivity,
-                    "Failed to unlock: ${error.message}",
-                    Toast.LENGTH_LONG
-                ).show()
-                btnUnlock.isEnabled = true
-                btnUnlock.text = "Unlock Door"
+                }.onFailure { error ->
+                    Toast.makeText(
+                        this@DoorbellActivity,
+                        "Failed to unlock: ${error.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    btnUnlock.isEnabled = true
+                    btnUnlock.text = "Unlock Door"
+                }
             }
         }
     }
