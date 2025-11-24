@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
         txtConnectionStatus.text = "Testing connection..."
         txtConnectionStatus.setTextColor(getColor(android.R.color.holo_orange_dark))
 
-        lifecycleScope.launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             val client = HomeAssistantClient(
                 prefsManager.haUrl,
                 prefsManager.accessToken,

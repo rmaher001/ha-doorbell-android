@@ -222,6 +222,8 @@ class HomeAssistantClient(
      */
     suspend fun testConnection(): Result<String> {
         return try {
+            Log.d(TAG, "Testing connection to: $haUrl/api/")
+
             val request = Request.Builder()
                 .url("$haUrl/api/")
                 .header("Authorization", "Bearer $accessToken")
@@ -229,16 +231,27 @@ class HomeAssistantClient(
 
             val response = client.newCall(request).execute()
 
+            Log.d(TAG, "Response code: ${response.code}")
+
             if (response.isSuccessful) {
                 val body = response.body?.string() ?: ""
+                Log.d(TAG, "Response body: $body")
+
+                if (body.isEmpty()) {
+                    return Result.failure(Exception("Empty response from Home Assistant"))
+                }
+
                 val json = gson.fromJson(body, JsonObject::class.java)
-                val message = json.get("message")?.asString ?: "Unknown"
+                val message = json?.get("message")?.asString ?: "Connected"
                 Result.success("Connected to Home Assistant: $message")
             } else {
+                val errorBody = response.body?.string() ?: "No error details"
+                Log.e(TAG, "Error response: $errorBody")
                 Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.e(TAG, "Connection test failed", e)
+            Result.failure(Exception("Connection failed: ${e.message}"))
         }
     }
 
