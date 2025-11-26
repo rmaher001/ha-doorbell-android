@@ -1,11 +1,14 @@
 package com.example.homeassistatntdoorbell
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
+import android.webkit.ConsoleMessage
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -35,6 +38,7 @@ class DoorbellActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var txtTitle: TextView
     private lateinit var txtDescription: TextView
+    private lateinit var btnTalk: Button
     private lateinit var btnUnlock: Button
     private lateinit var btnDismiss: Button
     private lateinit var imgCamera: ImageView
@@ -42,6 +46,7 @@ class DoorbellActivity : AppCompatActivity() {
 
     private val autoDismissHandler = Handler(Looper.getMainLooper())
     private var autoDismissSeconds = 0
+    private var launchedExternalApp = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +83,7 @@ class DoorbellActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         txtTitle = findViewById(R.id.txtTitle)
         txtDescription = findViewById(R.id.txtDescription)
+        btnTalk = findViewById(R.id.btnTalk)
         btnUnlock = findViewById(R.id.btnUnlock)
         btnDismiss = findViewById(R.id.btnDismiss)
         imgCamera = findViewById(R.id.imgCamera)
@@ -85,6 +91,10 @@ class DoorbellActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
+        btnTalk.setOnClickListener {
+            launchReolinkApp()
+        }
+
         btnUnlock.setOnClickListener {
             unlockDoor()
         }
@@ -95,36 +105,86 @@ class DoorbellActivity : AppCompatActivity() {
     }
 
     /**
-     * Load camera stream in WebView
+     * Launch Reolink app directly to doorbell camera for playback/timeline
+     */
+    private fun launchReolinkApp() {
+        // Release WebView microphone before launching Reolink
+        webView.loadUrl("about:blank")
+        launchedExternalApp = true
+
+        try {
+            val intent = Intent().apply {
+                component = android.content.ComponentName(
+                    "com.mcu.reolink",
+                    "com.android.bc.login.WelcomeActivity"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("UID", "952700096JAYXREP")
+                putExtra("ALMTIME", System.currentTimeMillis().toString())
+                putExtra("ALMNAME", "Detection")
+                putExtra("DEVNAME", "Doorbell")
+                putExtra("ALMTYPE", "PEOPLE")
+                putExtra("ALMCHN", "1")
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch Reolink: ${e.message}")
+            val launchIntent = packageManager.getLaunchIntentForPackage("com.mcu.reolink")
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+            } else {
+                Toast.makeText(this, "Reolink app not installed", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Load Scrypted WebRTC stream for live video with two-way audio
      */
     private fun loadCameraStream() {
         progressBar.visibility = View.VISIBLE
+        imgCamera.visibility = View.GONE
+        webView.visibility = View.VISIBLE
 
-        // Configure WebView
+        // Configure WebView for WebRTC with two-way audio
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
-            loadWithOverviewMode = true
-            useWideViewPort = true
+            allowFileAccess = true
+            allowContentAccess = true
+            databaseEnabled = true
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                Log.d(TAG, "WebView permission request: ${request.resources.joinToString()}")
+                // Grant all permissions (microphone for two-way audio)
+                runOnUiThread {
+                    request.grant(request.resources)
+                }
+            }
+
+            override fun onConsoleMessage(message: ConsoleMessage?): Boolean {
+                Log.d(TAG, "WebView Console: ${message?.message()}")
+                return true
+            }
         }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
+                Log.d(TAG, "WebView page loaded: $url")
                 progressBar.visibility = View.GONE
+            }
+
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                Log.e(TAG, "WebView error: $errorCode - $description")
             }
         }
 
-        webView.webChromeClient = WebChromeClient()
-
-        // Load camera stream
-        val cameraUrl = prefsManager.getFullCameraUrl()
-        Log.d(TAG, "Loading camera: $cameraUrl")
-
-        // Add authentication header for Home Assistant
-        val headers = mapOf("Authorization" to "Bearer ${prefsManager.accessToken}")
-        webView.loadUrl(cameraUrl, headers)
+        val scryptedUrl = prefsManager.getFullScryptedDashboardUrl()
+        Log.d(TAG, "Loading Scrypted URL: $scryptedUrl")
+        webView.loadUrl(scryptedUrl)
     }
 
     /**
@@ -196,6 +256,18 @@ class DoorbellActivity : AppCompatActivity() {
                 Log.d(TAG, "Auto-dismissing after $autoDismissSeconds seconds")
                 finish()
             }, autoDismissSeconds * 1000L)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reload Scrypted stream when returning from Reolink app
+        if (launchedExternalApp) {
+            launchedExternalApp = false
+            // Clear WebView state to force fresh WebRTC connection
+            webView.clearCache(true)
+            webView.clearHistory()
+            loadCameraStream()
         }
     }
 

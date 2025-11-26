@@ -204,6 +204,9 @@ class MainActivity : AppCompatActivity() {
             requiredPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        // Microphone permission for two-way audio
+        requiredPermissions.add(Manifest.permission.RECORD_AUDIO)
+
         return requiredPermissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
@@ -218,6 +221,12 @@ class MainActivity : AppCompatActivity() {
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
             }
+        }
+
+        // Microphone permission for two-way audio
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
         }
 
         if (permissionsToRequest.isNotEmpty()) {
@@ -281,6 +290,13 @@ class MainActivity : AppCompatActivity() {
             status.append(if (granted) "✓" else "✗").append(" Notifications\n")
             if (!granted) allGranted = false
         }
+
+        // Microphone permission
+        val micGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        status.append(if (micGranted) "✓" else "✗").append(" Microphone (two-way audio)\n")
+        if (!micGranted) allGranted = false
 
         // Display over apps
         val canDrawOverlays = Settings.canDrawOverlays(this)

@@ -49,7 +49,7 @@
         app:cardBackgroundColor="#DD000000"
         app:cardCornerRadius="12dp"
         app:cardElevation="8dp"
-        app:layout_constraintBottom_toTopOf="@id/btnUnlock"
+        app:layout_constraintBottom_toTopOf="@id/btnTalk"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -78,6 +78,19 @@
                 android:textColor="@android:color/white" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
+
+    <!-- Talk Button (launches Scrypted for two-way audio) -->
+    <Button
+        android:id="@+id/btnTalk"
+        android:layout_width="0dp"
+        android:layout_height="64dp"
+        android:layout_margin="16dp"
+        android:text="Talk"
+        android:textSize="18sp"
+        android:backgroundTint="@android:color/holo_blue_dark"
+        app:layout_constraintBottom_toTopOf="@id/btnUnlock"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Unlock Button -->
     <Button

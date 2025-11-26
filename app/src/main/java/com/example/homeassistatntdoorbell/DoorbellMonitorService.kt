@@ -84,34 +84,10 @@ class DoorbellMonitorService : Service() {
      * Handle doorbell trigger event
      */
     private fun handleDoorbellTrigger() {
-        // Create intent to launch full-screen activity
+        // Launch full-screen activity directly
         val intent = Intent(this, DoorbellActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-
-        // Create pending intent with FLAG_IMMUTABLE (required for Android 12+)
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Create full-screen intent notification
-        val notification = NotificationCompat.Builder(this, NotificationHelper.CHANNEL_ID_DOORBELL)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Visitor at Door")
-            .setContentText("Someone is at the front door")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(pendingIntent, true)
-            .setAutoCancel(true)
-            .build()
-
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.notify(2, notification)
-
-        // Also launch activity directly
         startActivity(intent)
     }
 

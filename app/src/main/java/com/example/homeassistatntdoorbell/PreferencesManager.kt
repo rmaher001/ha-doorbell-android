@@ -34,6 +34,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_LOCK_ENTITY = "lock_entity"
         private const val KEY_CAMERA_URL = "camera_url"
         private const val KEY_SCRYPTED_TIMELINE_URL = "scrypted_timeline_url"
+        private const val KEY_SCRYPTED_DASHBOARD_URL = "scrypted_dashboard_url"
+        private const val KEY_USE_SCRYPTED_WEBRTC = "use_scrypted_webrtc"
         private const val KEY_AUTO_DISMISS_SECONDS = "auto_dismiss_seconds"
         private const val KEY_SERVICE_ENABLED = "service_enabled"
 
@@ -41,7 +43,8 @@ class PreferencesManager(context: Context) {
         const val DEFAULT_DOORBELL_ENTITY = "binary_sensor.doorbell_visitor"
         const val DEFAULT_LOCK_ENTITY = "lock.front_door_lock"
         const val DEFAULT_CAMERA_URL = "/api/camera_proxy/camera.doorbell_clear"
-        const val DEFAULT_AUTO_DISMISS_SECONDS = 30
+        const val DEFAULT_SCRYPTED_DASHBOARD_URL = "/api/scrypted/e71cc4f78d8e384e7433761a116a669d/endpoint/@scrypted/nvr/public/#/iframe/148?live=true&destination=low-resolution"
+        const val DEFAULT_AUTO_DISMISS_SECONDS = 120
     }
 
     // Home Assistant URL
@@ -74,6 +77,27 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_SCRYPTED_TIMELINE_URL, "") ?: ""
         set(value) = prefs.edit().putString(KEY_SCRYPTED_TIMELINE_URL, value).apply()
 
+    // Scrypted Dashboard URL (for two-way audio)
+    var scryptedDashboardUrl: String
+        get() = prefs.getString(KEY_SCRYPTED_DASHBOARD_URL, DEFAULT_SCRYPTED_DASHBOARD_URL) ?: DEFAULT_SCRYPTED_DASHBOARD_URL
+        set(value) = prefs.edit().putString(KEY_SCRYPTED_DASHBOARD_URL, value).apply()
+
+    // Use Scrypted WebRTC for live streaming
+    var useScryptedWebRTC: Boolean
+        get() = prefs.getBoolean(KEY_USE_SCRYPTED_WEBRTC, true)
+        set(value) = prefs.edit().putBoolean(KEY_USE_SCRYPTED_WEBRTC, value).apply()
+
+    /**
+     * Get Scrypted dashboard URL for two-way audio
+     */
+    fun getFullScryptedDashboardUrl(): String {
+        return if (scryptedDashboardUrl.startsWith("http")) {
+            scryptedDashboardUrl
+        } else {
+            "$haUrl$scryptedDashboardUrl"
+        }
+    }
+
     // Auto-dismiss timeout
     var autoDismissSeconds: Int
         get() = prefs.getInt(KEY_AUTO_DISMISS_SECONDS, DEFAULT_AUTO_DISMISS_SECONDS)
@@ -82,7 +106,7 @@ class PreferencesManager(context: Context) {
     // Service enabled status
     var serviceEnabled: Boolean
         get() = prefs.getBoolean(KEY_SERVICE_ENABLED, false)
-        set(value) = prefs.edit().putString(KEY_SERVICE_ENABLED, value.toString()).apply()
+        set(value) = prefs.edit().putBoolean(KEY_SERVICE_ENABLED, value).apply()
 
     /**
      * Check if all required settings are configured

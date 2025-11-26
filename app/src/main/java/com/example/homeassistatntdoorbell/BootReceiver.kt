@@ -14,8 +14,9 @@ class BootReceiver : BroadcastReceiver() {
     private val TAG = "BootReceiver"
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.d(TAG, "Boot completed, checking if service should start")
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
+            intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            Log.d(TAG, "${intent.action}, checking if service should start")
 
             val prefsManager = PreferencesManager(context)
 

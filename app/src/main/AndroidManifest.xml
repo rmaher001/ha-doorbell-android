@@ -23,11 +23,21 @@
     <!-- Vibration -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Microphone for two-way audio -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- Boot receiver permission -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- System alert window for display over apps -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Query apps for launching -->
+    <queries>
+        <package android:name="com.mcu.reolink" />
+        <package android:name="app.scrypted.nvr" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -76,6 +86,7 @@
             android:enabled="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
     </application>
