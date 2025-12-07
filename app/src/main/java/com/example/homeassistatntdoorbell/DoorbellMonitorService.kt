@@ -67,6 +67,7 @@ class DoorbellMonitorService : Service() {
         haClient = HomeAssistantClient(
             haUrl = prefsManager.haUrl,
             accessToken = prefsManager.accessToken,
+            doorbellEntity = prefsManager.doorbellEntity,
             onDoorbellTrigger = {
                 Log.i(TAG, "Doorbell triggered! Showing notification...")
                 handleDoorbellTrigger()

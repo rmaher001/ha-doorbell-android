@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 class HomeAssistantClient(
     private val haUrl: String,
     private val accessToken: String,
+    private val doorbellEntity: String = "binary_sensor.doorbell_visitor",
     private val onDoorbellTrigger: () -> Unit,
     private val onConnectionStateChange: (Boolean) -> Unit
 ) {
@@ -44,6 +45,11 @@ class HomeAssistantClient(
      * Connect to Home Assistant WebSocket
      */
     fun connect() {
+        // Clean up any existing connection first
+        webSocket?.close(1000, "Reconnecting")
+        webSocket = null
+        isAuthenticated = false
+
         val wsUrl = haUrl.replace("https://", "wss://").replace("http://", "ws://") + "/api/websocket"
 
         Log.d(TAG, "Connecting to: $wsUrl")
@@ -89,8 +95,6 @@ class HomeAssistantClient(
             val json = gson.fromJson(text, JsonObject::class.java)
             val type = json.get("type")?.asString
 
-            Log.d(TAG, "Received message type: $type")
-
             when (type) {
                 "auth_required" -> {
                     // Send authentication
@@ -102,7 +106,7 @@ class HomeAssistantClient(
                 }
 
                 "auth_ok" -> {
-                    Log.d(TAG, "Authentication successful")
+                    Log.i(TAG, "Authentication successful")
                     isAuthenticated = true
                     subscribeToEvents()
                 }
@@ -114,10 +118,8 @@ class HomeAssistantClient(
 
                 "result" -> {
                     val success = json.get("success")?.asBoolean ?: false
-                    if (success) {
-                        Log.d(TAG, "Subscription successful")
-                    } else {
-                        Log.e(TAG, "Subscription failed")
+                    if (!success) {
+                        Log.e(TAG, "Subscription failed: $text")
                     }
                 }
 
@@ -131,23 +133,25 @@ class HomeAssistantClient(
     }
 
     /**
-     * Handle state change events
+     * Handle trigger events from subscribe_trigger
+     * Format: {"id": 1, "type": "event", "event": {"variables": {"trigger": {...}}}}
      */
     private fun handleEvent(json: JsonObject) {
         try {
             val event = json.getAsJsonObject("event")
-            val eventType = event.get("event_type")?.asString
 
-            if (eventType == "state_changed") {
-                val data = event.getAsJsonObject("data")
-                val entityId = data.get("entity_id")?.asString
-                val newState = data.getAsJsonObject("new_state")
-                val state = newState?.get("state")?.asString
+            // subscribe_trigger returns events with a "variables" object containing "trigger"
+            val variables = event?.getAsJsonObject("variables")
+            val trigger = variables?.getAsJsonObject("trigger")
 
-                Log.d(TAG, "State changed: $entityId -> $state")
+            if (trigger != null) {
+                val toState = trigger.get("to_state")?.asJsonObject
+                val entityId = toState?.get("entity_id")?.asString
+                val state = toState?.get("state")?.asString
 
-                // Check if it's the doorbell entity changing to "on"
-                if (entityId == PreferencesManager.DEFAULT_DOORBELL_ENTITY && state == "on") {
+                // The trigger is already filtered to our entity and "on" state
+                // but double-check for safety
+                if (entityId == doorbellEntity && state == "on") {
                     Log.i(TAG, "Doorbell triggered!")
                     onDoorbellTrigger()
                 }
@@ -158,15 +162,21 @@ class HomeAssistantClient(
     }
 
     /**
-     * Subscribe to state change events
+     * Subscribe to state changes for the doorbell entity only using subscribe_trigger
+     * This is much more efficient than subscribing to all state_changed events
      */
     private fun subscribeToEvents() {
         val subscribeMessage = mapOf(
             "id" to messageId++,
-            "type" to "subscribe_events",
-            "event_type" to "state_changed"
+            "type" to "subscribe_trigger",
+            "trigger" to mapOf(
+                "platform" to "state",
+                "entity_id" to doorbellEntity,
+                "to" to "on"
+            )
         )
         send(subscribeMessage)
+        Log.i(TAG, "Subscribed to trigger for entity: $doorbellEntity")
     }
 
     /**
@@ -176,7 +186,6 @@ class HomeAssistantClient(
         try {
             val json = gson.toJson(message)
             webSocket?.send(json)
-            Log.d(TAG, "Sent: $json")
         } catch (e: Exception) {
             Log.e(TAG, "Error sending message: ${e.message}", e)
         }
@@ -188,20 +197,34 @@ class HomeAssistantClient(
     private fun scheduleReconnect() {
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
-            var delayMs = 1000L
-            while (true) {
-                Log.d(TAG, "Reconnecting in ${delayMs}ms...")
+            var delayMs = 5000L // Start with 5 seconds
+            var attempts = 0
+            val maxAttempts = 100 // Limit reconnection attempts
+
+            while (attempts < maxAttempts) {
+                attempts++
+                Log.d(TAG, "Reconnecting in ${delayMs}ms... (attempt $attempts)")
                 delay(delayMs)
-                connect()
 
-                // Exponential backoff up to 30 seconds
-                delayMs = (delayMs * 2).coerceAtMost(30000)
+                // Only reconnect if we're not already authenticated
+                if (!isAuthenticated) {
+                    connect()
+                }
 
-                // Wait to see if connection succeeds
-                delay(5000)
+                // Wait for authentication to complete
+                delay(10000)
+
                 if (isAuthenticated) {
+                    Log.d(TAG, "Reconnection successful after $attempts attempts")
                     break
                 }
+
+                // Exponential backoff: 5s -> 10s -> 20s -> 30s (max)
+                delayMs = (delayMs * 2).coerceAtMost(30000)
+            }
+
+            if (attempts >= maxAttempts) {
+                Log.e(TAG, "Max reconnection attempts reached, giving up")
             }
         }
     }
